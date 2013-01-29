@@ -1,9 +1,1 @@
-ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
-lib_LTLIBRARIES = libstomp-@STOMP_API_VERSION@.la
-libstomp_@STOMP_API_VERSION@_la_SOURCES = src/stomp.c 
-libstomp_@STOMP_API_VERSION@_la_LDFLAGS = -version-info $(STOMP_SO_VERSION) -lrt
-stomp_includedir = $(includedir)/stomp-$(STOMP_API_VERSION)
-stomp_include_HEADERS = src/stomp.h 
-pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = stomp.pc
-dist_noinst_SCRIPTS = autogen.sh
+SUBDIRS = src tests
