@@ -14,7 +14,7 @@ check_stomp_SOURCES = check_stomp.c \
 		      $(top_builddir)/src/stomp.h 
 
 check_stomp_CFLAGS = @CHECK_CFLAGS@ -Wall
-check_stomp_LDADD = $(top_builddir)/src/libstomp-@STOMP_API_VERSION@.la @CHECK_LIBS@
+check_stomp_LDADD = $(top_builddir)/src/libstomp.la @CHECK_LIBS@
 
 check_frame_SOURCES = check_frame.c \
 		      $(top_builddir)/src/frame.h \
