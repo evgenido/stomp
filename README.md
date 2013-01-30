@@ -11,9 +11,7 @@ STOMP client library written in C
 
 ## Examples
 
-See the stomp-utils project on github:
-
-* [stomp-utils at github](https://github.com/evgenido/stomp-utils)
+See the examples folder.
 
 ## Contributions
 
