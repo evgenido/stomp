@@ -1,7 +1,6 @@
 noinst_PROGRAMS = listener
+AM_CPPFLAGS = -I$(srcdir)/../src -Wall -Werror
+listener_SOURCES = listener.c 
 
-listener_SOURCES = listener.c $(top_builddir)/src/stomp.h 
-
-listener_CFLAGS = -Wall -Werror -I$(top_builddir)/src/
-listener_LDADD = $(top_builddir)/src/libstomp.la 
+listener_LDADD = ../src/libstomp.la 
 

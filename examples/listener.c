@@ -1,7 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <stomp.h>
 #include <string.h>
+
+#include <stomp.h>
 
 typedef struct {
 	const char *destination;
