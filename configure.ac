@@ -9,5 +9,5 @@ AM_CONDITIONAL(HAVE_CHECK, test x$HAVE_CHECK = xyes)
 AC_SUBST([STOMP_SO_VERSION], [0:0:0])
 AC_SUBST([STOMP_API_VERSION], [0.0])
 
-AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile stomp.pc])
+AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile examples/Makefile stomp.pc])
 AC_OUTPUT
