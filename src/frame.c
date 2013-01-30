@@ -6,6 +6,47 @@
 #include "frame.h"
 #include "hdr.h"
 
+typedef enum {
+	RS_INIT,
+	RS_CMD,
+	RS_HDR,
+	RS_HDR_ESC,
+	RS_BODY,
+	RS_DONE,
+	RS_ERR
+} read_state_t;
+
+typedef struct {
+	size_t key_offset;
+	size_t key_len;
+	size_t val_offset;
+	size_t val_len;
+} frame_hdr_t;
+
+struct _frame {
+	void *buf;
+	size_t buf_len; /* length of data in buf in bytes */
+	size_t buf_capacity; /* allocated size in bytes */
+
+	size_t cmd_offset; /* pointer to the start of the cmd string */
+	size_t cmd_len; /* lenght of cmd string in bytes */
+
+	frame_hdr_t *hdrs;
+	int hdrs_len; 
+	int hdrs_capacity; 
+
+	stomp_hdr_t *stomp_hdrs;
+	int stomp_hdrs_len; 
+	int stomp_hdrs_capacity; 
+
+	size_t body_offset;
+	size_t body_len; /* length of body in bytes */
+
+	read_state_t read_state; /* current state of the frame reading state mashine */
+	size_t tmp_offset; /* current position within buf while reading an incomming frame */
+	size_t tmp_len; /* amount of bytes read while reading an incomming frame */
+};
+
 /* number of bytes to increase session->buf by
  * when adding more data to the frame */
 #define BUFINCLEN 512
@@ -52,6 +93,7 @@ frame_t *frame_new()
 
 void frame_free(frame_t *f)
 {
+	free(f->stomp_hdrs);
 	free(f->hdrs);
 	free(f->buf);
 	free(f);
@@ -61,18 +103,22 @@ void frame_reset(frame_t *f)
 {
 	void *buf = f->buf;
 	size_t capacity = f->buf_capacity;
-	stomp_hdr_t *hdrs = f->hdrs;
+	frame_hdr_t *hdrs = f->hdrs;
+	stomp_hdr_t *stomp_hdrs = f->stomp_hdrs;
 	size_t hdrs_capacity = f->hdrs_capacity;
+	size_t stomp_hdrs_capacity = f->stomp_hdrs_capacity;
 	memset(hdrs, 0, sizeof(*hdrs)*hdrs_capacity);
 	memset(f, 0, sizeof(*f));
 	f->buf = buf;
 	f->buf_capacity = capacity;
 	f->hdrs = hdrs;
 	f->hdrs_capacity = hdrs_capacity;
+	f->stomp_hdrs = stomp_hdrs;
+	f->stomp_hdrs_capacity = stomp_hdrs_capacity;
 	f->read_state = RS_INIT;
 }
 
-size_t buflene(const void *data, size_t len)
+static size_t buflene(const void *data, size_t len)
 {
 	char c;
 	size_t lene = 0;
@@ -91,7 +137,7 @@ size_t buflene(const void *data, size_t len)
 	return lene;
 }
 
-void *frame_alloc(frame_t *f, size_t len)
+static void *frame_alloc(frame_t *f, size_t len)
 {
 	size_t capacity;
 	void *buf;
@@ -114,7 +160,7 @@ void *frame_alloc(frame_t *f, size_t len)
 	return f->buf + f->buf_len;
 }
 
-void *frame_bufcat(frame_t *f, const void *data, size_t len)
+static void *frame_bufcat(frame_t *f, const void *data, size_t len)
 {
 	void *dest;
 
@@ -130,7 +176,7 @@ void *frame_bufcat(frame_t *f, const void *data, size_t len)
 	return dest;
 }
 
-void *frame_bufcate(frame_t *f, const void *data, size_t len)
+static void *frame_bufcate(frame_t *f, const void *data, size_t len)
 {
 	size_t i;
 	void *dest;
@@ -182,13 +228,15 @@ void *frame_bufcate(frame_t *f, const void *data, size_t len)
 
 int frame_cmd_set(frame_t *f, const char *cmd)
 {
+	void *dest;
 	size_t len = strlen(cmd);
 	
-	f->cmd = frame_bufcat(f, cmd, len);
-	if (!f->cmd) {
+	dest = frame_bufcat(f, cmd, len);
+	if (!dest) {
 		return -1;
 	}
 	
+	f->cmd_offset = dest - f->buf;
 	f->cmd_len = len;
 
 	if (!frame_bufcat(f, "\n", 1)) {
@@ -200,15 +248,16 @@ int frame_cmd_set(frame_t *f, const char *cmd)
 
 int frame_hdr_add(frame_t *f, const char *key, const char *val)
 {
-	stomp_hdr_t *h;
+	frame_hdr_t *h;
+	void *dest;
 	size_t len;
 
-	if (!f->cmd) {
+	if (!f->cmd_len) {
 		errno = EINVAL;
 		return -1;
 	}
 	
-	if (f->body) {
+	if (f->body_offset) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -228,20 +277,24 @@ int frame_hdr_add(frame_t *f, const char *key, const char *val)
 
 	h = &f->hdrs[f->hdrs_len];
 	len = strlen(key);
-	h->key = frame_bufcate(f, key, len);
-	if (!h->key) {
+	dest = frame_bufcate(f, key, len);
+	if (!dest) {
 		return -1;
 	}
+
+	h->key_offset = dest - f->buf; 
 
 	if (!frame_bufcat(f, ":", 1)) {
 		return -1;
 	}
 
 	len = strlen(val);
-	h->val = frame_bufcate(f, val, len);
-	if (!h->val) {
+	dest = frame_bufcate(f, val, len);
+	if (!dest) {
 		return -1;
 	}
+	
+	h->val_offset = dest - f->buf;
 
 	if (!frame_bufcat(f, "\n", 1)) {
 		return -1;
@@ -270,12 +323,13 @@ int frame_hdrs_add(frame_t *f, int hdrc, const stomp_hdr_t *hdrs)
 int frame_body_set(frame_t *f, const void *data, size_t len)
 {
 	void *dest;
+	size_t offset;
 
-	if (!f->cmd) {
+	if (!f->cmd_len) {
 		return -1;
 	}
 
-	if (f->body) {
+	if (f->body_offset) {
 		return -1;
 	}
 	
@@ -289,12 +343,14 @@ int frame_body_set(frame_t *f, const void *data, size_t len)
 		return -1;
 	}
 
+	offset = dest - f->buf;
+
 	/* end of frame */
 	if (!frame_bufcat(f, "\0", 1)) {
 		return -1;
 	}
 
-	f->body = dest;
+	f->body_offset = offset;
 	f->body_len = len;
 
 	return 0;
@@ -305,15 +361,15 @@ static read_state_t frame_read_body(frame_t *f, char c)
 	void *tmp;
 	read_state_t state = f->read_state;
 	size_t body_len;
-	const char *l = hdr_get(f->hdrs_len, f->hdrs, "content-length");
+	const char *l;
 
 	tmp = frame_bufcat(f, &c, 1);
 	if (!tmp) {
 		return RS_ERR;
 	}
 
-	if (!f->tmp) {
-		f->tmp = tmp;
+	if (!f->tmp_offset) {
+		f->tmp_offset = tmp - f->buf;
 	}
 
 	f->tmp_len += 1;
@@ -321,12 +377,12 @@ static read_state_t frame_read_body(frame_t *f, char c)
 	if (c != '\0') {
 		return state;
 	}
-
+       	
 	/* \0 and no content-type -> frame is over */ 
 	/* OR err parsing content-type -> frame is over */ 
 	/* OR loaded all data -> frame is over */
-	if (!l || parse_content_length(l, &body_len) || f->tmp_len >= body_len){
-		f->body = f->tmp;
+	if (!frame_hdr_get(f, "content-length", &l) || parse_content_length(l, &body_len) || f->tmp_len >= body_len){
+		f->body_offset = f->tmp_offset;
 		f->body_len = f->tmp_len - 1; /* skip last '\0' */
 		return RS_DONE;
 	}
@@ -341,7 +397,7 @@ int frame_write(int fd, frame_t *f)
 	size_t total = 0;
 
 	/* close the frame */
-	if (!f->body) {
+	if (!f->body_offset) {
 		if (!frame_bufcat(f, "\n\0", 2)) {
 			return -1;
 		}
@@ -375,7 +431,7 @@ static read_state_t frame_read_init(frame_t *f, char c)
 			tmp = frame_bufcat(f, &c, 1);
 		       	if (tmp) {
 				state = RS_CMD;
-				f->tmp = tmp;
+				f->tmp_offset = tmp - f->buf;
 				f->tmp_len = 1;
 			}
 			break;
@@ -402,15 +458,15 @@ static read_state_t frame_read_cmd(frame_t *f, char c)
 		case '\n':
 			state = RS_ERR;
 			if (frame_bufcat(f, "\0", 1)) {
-				if (!strncmp(f->tmp, "CONNECTED", f->tmp_len) || 
-					!strncmp(f->tmp, "ERROR", f->tmp_len) || 
-					!strncmp(f->tmp, "RECEIPT", f->tmp_len) || 
-					!strncmp(f->tmp, "MESSAGE", f->tmp_len)) 
+				if (!strncmp(f->buf + f->tmp_offset, "CONNECTED", f->tmp_len) || 
+					!strncmp(f->buf + f->tmp_offset, "ERROR", f->tmp_len) || 
+					!strncmp(f->buf + f->tmp_offset, "RECEIPT", f->tmp_len) || 
+					!strncmp(f->buf + f->tmp_offset, "MESSAGE", f->tmp_len)) 
 				{
-					f->cmd = f->tmp;
+					f->cmd_offset = f->tmp_offset;
 					f->cmd_len = f->tmp_len;
 					state = RS_HDR;
-					f->tmp = NULL;
+					f->tmp_offset = 0;
 					f->tmp_len = 0;
 				} 
 			} 
@@ -428,7 +484,7 @@ static read_state_t frame_read_cmd(frame_t *f, char c)
 
 static read_state_t frame_read_hdr(frame_t *f, char c) 
 {
-	stomp_hdr_t *h;
+	frame_hdr_t *h;
 	void *tmp;
 	size_t count = f->hdrs_len;
 	read_state_t state = f->read_state;
@@ -458,19 +514,21 @@ static read_state_t frame_read_hdr(frame_t *f, char c)
 			if (!frame_bufcat(f, "\0", 1)) {
 				state = RS_ERR;
 			} else {
-				h->key = f->tmp;
-				f->tmp = NULL;
+				h->key_offset = f->tmp_offset;
+				h->key_len = f->tmp_len;
+				f->tmp_offset = 0;
 				f->tmp_len = 0;
 			}
 			break;
 		case '\n':
-			if (h->key) {
+			if (h->key_len) {
 				if (!frame_bufcat(f, "\0", 1)) {
 					state = RS_ERR;
 				} else {
-					h->val = f->tmp;
+					h->val_offset = f->tmp_offset;
+					h->val_len = f->tmp_len;
 					f->hdrs_len += 1;
-					f->tmp = NULL;
+					f->tmp_offset = 0;
 					f->tmp_len = 0;
 				}
 			} else {
@@ -485,8 +543,8 @@ static read_state_t frame_read_hdr(frame_t *f, char c)
 			if (!tmp) {
 				state = RS_ERR;
 			} else {
-				if (!f->tmp) {
-					f->tmp = tmp;
+				if (!f->tmp_offset) {
+					f->tmp_offset = tmp - f->buf;
 				} 
 				f->tmp_len += 1;
 			}
@@ -517,8 +575,8 @@ static read_state_t frame_read_hdr_esc(frame_t *f, char c)
 		return RS_ERR;
 	} 
 
-	if (!f->tmp) {
-		f->tmp = tmp;
+	if (!f->tmp_offset) {
+		f->tmp_offset = tmp - f->buf;
 	} 
 
 	f->tmp_len += 1;
@@ -563,3 +621,75 @@ int frame_read(int fd, frame_t *f)
 
 	return 0;
 }
+
+int frame_cmd_get(frame_t *f, const char **cmd)
+{
+	if (!f->cmd_len) {
+		return 0;
+	}
+
+	*cmd = f->buf + f->cmd_offset;
+	return f->cmd_len;
+}
+
+int frame_hdr_get(frame_t *f, const char *key, const char **val)
+{
+	int i;
+	const frame_hdr_t *h;
+	for (i=0; i < f->hdrs_len; i++) {
+		h = &f->hdrs[i];
+		if (!strncmp(key, f->buf + h->key_offset, h->key_len)) {
+			*val = f->buf + h->val_offset;
+			return h->val_len; 
+		}
+	}
+
+	return 0;
+}
+
+int frame_hdrs_get(frame_t *f, const stomp_hdr_t **hdrs)
+{
+	stomp_hdr_t *h;
+	int i;
+
+	if (!f->hdrs) {
+		return 0;
+	}
+
+	if (f->stomp_hdrs_len == f->hdrs_len) {
+		*hdrs = f->stomp_hdrs;
+		return f->stomp_hdrs_len;
+	}
+
+	if (f->hdrs_len > f->stomp_hdrs_capacity) {
+		h = realloc(f->stomp_hdrs, f->hdrs_len * sizeof(*h));
+		if (!h) {
+			return -1;
+		}
+		
+		f->stomp_hdrs = h;
+		f->stomp_hdrs_capacity = f->hdrs_len;
+	}
+
+	for (i=0; i < f->hdrs_len; i++) {
+		h = &f->stomp_hdrs[i];
+		h->key = f->buf + f->hdrs[i].key_offset;
+		h->val = f->buf + f->hdrs[i].val_offset;
+	}
+
+	f->stomp_hdrs_len = f->hdrs_len;
+
+	*hdrs = f->stomp_hdrs;
+	return f->stomp_hdrs_len;
+}
+
+int frame_body_get(frame_t *f, const void **body)
+{
+	if (!f->body_len) {
+		return 0;
+	}
+
+	*body = f->buf + f->body_offset;
+	return f->body_len;
+}
+

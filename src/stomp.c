@@ -53,6 +53,29 @@ struct _stomp_session {
 	int run;
 };
 
+static int parse_version(const char *s, stomp_prot_t *v)
+{
+	stomp_prot_t tmp_v;
+
+	if (!s) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (!strncmp(s, "1.2", 3)) {
+		tmp_v = SPL_12;
+	} else if (!strncmp(s, "1.1", 3)) {
+		tmp_v = SPL_11;
+	} else if (!strncmp(s, "1.0", 3)) {
+		tmp_v = SPL_10;
+	} else {
+		tmp_v = SPL_10;
+	}
+	
+	*v = tmp_v;
+
+	return 0;
+}
 static int parse_heartbeat(const char *s, long *x, long *y)
 {
 	long tmp_x, tmp_y;
@@ -612,20 +635,14 @@ static void on_connected(stomp_session_t *s)
 	stomp_ctx_connected_t e;
 	frame_t *f = s->frame_in;
 	long x, y;
-	const char *v = hdr_get(f->hdrs_len, f->hdrs, "version");
-	const char *hb = hdr_get(f->hdrs_len, f->hdrs, "heart-beat");
+	const char *h;
+	stomp_prot_t v;
 
-	if (!strcmp(v, "1.2")) {
-		s->protocol = SPL_12;
-	} else if (!strcmp(v, "1.1")) {
-		s->protocol = SPL_11;
-	} else if (!strcmp(v, "1.0")) {
-		s->protocol = SPL_10;
-	} else {
-		s->protocol = SPL_10;
+	if (frame_hdr_get(f, "version", &h)>0 && !parse_version(h, &v)) {
+		s->protocol = v;
 	}
 
-	if (hb && !parse_heartbeat(hb, &x, &y)) {
+	if (frame_hdr_get(f, "heart-beat", &h)>0 && !parse_heartbeat(h, &x, &y)) {
 		if (!s->client_hb || !y) {
 			s->client_hb = 0;
 		} else {
@@ -646,8 +663,7 @@ static void on_connected(stomp_session_t *s)
 		return;
 	}
 
-	e.hdrc = f->hdrs_len;
-	e.hdrs = f->hdrs;
+	e.hdrc = frame_hdrs_get(f, &e.hdrs);
 
 	s->callbacks.connected(s, &e, s->ctx);
 }
@@ -655,13 +671,13 @@ static void on_connected(stomp_session_t *s)
 static void on_receipt(stomp_session_t *s) 
 { 
 	stomp_ctx_receipt_t e;
+	frame_t *f = s->frame_in;
 
 	if (!s->callbacks.receipt) {
 		return;
 	}
 
-	e.hdrc = s->frame_in->hdrs_len;
-	e.hdrs = s->frame_in->hdrs;
+	e.hdrc = frame_hdrs_get(f, &e.hdrs);
 
 	s->callbacks.receipt(s, &e, s->ctx);
 }
@@ -669,15 +685,14 @@ static void on_receipt(stomp_session_t *s)
 static void on_error(stomp_session_t *s) 
 { 
 	stomp_ctx_error_t e;
+	frame_t *f = s->frame_in;
 
 	if (!s->callbacks.error) {
 		return;
 	}
 
-	e.hdrc = s->frame_in->hdrs_len;
-	e.hdrs = s->frame_in->hdrs;
-	e.body_len = s->frame_in->body_len;
-	e.body = s->frame_in->body;
+	e.hdrc = frame_hdrs_get(f, &e.hdrs);
+	e.body_len = frame_body_get(f, &e.body);
 
 	s->callbacks.error(s, &e, s->ctx);
 }
@@ -685,15 +700,14 @@ static void on_error(stomp_session_t *s)
 static void on_message(stomp_session_t *s) 
 { 
 	stomp_ctx_message_t e;
+	frame_t *f = s->frame_in;
 
 	if (!s->callbacks.message) {
 		return;
 	}
 	
-	e.hdrc = s->frame_in->hdrs_len;
-	e.hdrs = s->frame_in->hdrs;
-	e.body_len = s->frame_in->body_len;
-	e.body = s->frame_in->body;
+	e.hdrc = frame_hdrs_get(f, &e.hdrs);
+	e.body_len = frame_body_get(f, &e.body);
 
 	s->callbacks.message(s, &e, s->ctx);
 }
@@ -703,21 +717,21 @@ static int on_server_cmd(stomp_session_t *s)
 	int err;
 	const char *cmd;
 	size_t cmd_len;
+	frame_t *f = s->frame_in;
 
-	frame_reset(s->frame_in);
+	frame_reset(f);
 
-	err = frame_read(s->broker_fd, s->frame_in);
+	err = frame_read(s->broker_fd, f);
 	if (err) {
 		return -1;
 	}
 	
-	cmd = s->frame_in->cmd;
-	cmd_len = s->frame_in->cmd_len;
+	cmd_len = frame_cmd_get(f, &cmd);
 	/* heart-beat */
-	if (!cmd) {
+	if (!cmd_len) {
 		return 0;
 	}
-	
+
 	if (!strncmp(cmd, "CONNECTED", cmd_len)) {
 		on_connected(s);
 	} else if (!strncmp(cmd, "ERROR", cmd_len)) {
