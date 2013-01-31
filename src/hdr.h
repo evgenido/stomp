@@ -19,7 +19,7 @@
 
 #include "stomp.h"
 
-const char *hdr_get(int count, const stomp_hdr_t *hdrs, const char *key);
+const char *hdr_get(size_t count, const stomp_hdr_t *hdrs, const char *key);
 
 
 #endif /* HDR_H */

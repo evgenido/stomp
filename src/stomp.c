@@ -19,7 +19,6 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -61,8 +60,8 @@ struct _stomp_session {
 	stomp_prot_t protocol;
 	int broker_fd;
 	int client_id; /* unique ids for subscribe */
-	long client_hb; /* client heart beat period in milliseconds */
-	long broker_hb; /* broker heart beat period in milliseconds */
+	unsigned long client_hb; /* client heart beat period in milliseconds */
+	unsigned long broker_hb; /* broker heart beat period in milliseconds */
 	struct timespec last_write;
 	struct timespec last_read;
 	int broker_timeouts; 
@@ -92,9 +91,9 @@ static int parse_version(const char *s, stomp_prot_t *v)
 
 	return 0;
 }
-static int parse_heartbeat(const char *s, long *x, long *y)
+static int parse_heartbeat(const char *s, unsigned long *x, unsigned long *y)
 {
-	long tmp_x, tmp_y;
+	unsigned long tmp_x, tmp_y;
 	char *endptr;
 	const char *nptr = s;
 
@@ -104,8 +103,8 @@ static int parse_heartbeat(const char *s, long *x, long *y)
 	}
 
 	errno = 0;
-	tmp_x = strtol(nptr, &endptr, 10);
-	if ((errno == ERANGE && (tmp_x == LONG_MAX || tmp_x == LONG_MIN)) || (errno != 0 && tmp_x == 0)) {
+	tmp_x = strtoul(nptr, &endptr, 10);
+	if (errno != 0) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -129,8 +128,8 @@ static int parse_heartbeat(const char *s, long *x, long *y)
 	nptr++;
 
 	errno = 0;
-	tmp_y = strtol(nptr, &endptr, 10);
-	if ((errno == ERANGE && (tmp_y == LONG_MAX || tmp_y == LONG_MIN)) || (errno != 0 && tmp_y == 0)) {
+	tmp_y = strtoul(nptr, &endptr, 10);
+	if (errno !=0) {
 		errno = EINVAL;
 		return -1;
 	}
@@ -235,14 +234,14 @@ void stomp_callback_del(stomp_session_t *s, stomp_cb_type_t type)
 }
 
 
-int stomp_connect(stomp_session_t *s, const char *host, const char *service, int hdrc, const stomp_hdr_t *hdrs)
+int stomp_connect(stomp_session_t *s, const char *host, const char *service, size_t hdrc, const stomp_hdr_t *hdrs)
 {
 	struct addrinfo hints;
 	struct addrinfo *result, *rp;
 	int sfd;
 	int err;
-	long x = 0;
-	long y = 0;
+	unsigned long x = 0;
+	unsigned long y = 0;
 	const char *hb = hdr_get(hdrc, hdrs, "heart-beat");
 
 	if (hb && parse_heartbeat(hb, &x, &y)) {
@@ -306,7 +305,7 @@ int stomp_connect(stomp_session_t *s, const char *host, const char *service, int
 	return 0;
 }
 
-int stomp_disconnect(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
+int stomp_disconnect(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 {
 	frame_reset(s->frame_out);
 
@@ -329,7 +328,7 @@ int stomp_disconnect(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
 }
 
 // TODO enforce different client-ids in case they are provided with hdrs
-int stomp_subscribe(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
+int stomp_subscribe(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 {
 	const char *ack;
 	char buf[MAXBUFLEN];
@@ -384,7 +383,7 @@ int stomp_subscribe(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
 	return client_id;
 }
 
-int stomp_unsubscribe(stomp_session_t *s, int client_id, int hdrc, const stomp_hdr_t *hdrs)
+int stomp_unsubscribe(stomp_session_t *s, int client_id, size_t hdrc, const stomp_hdr_t *hdrs)
 {
 	char buf[MAXBUFLEN];
 	const char *id = hdr_get(hdrc, hdrs, "id");
@@ -431,7 +430,7 @@ int stomp_unsubscribe(stomp_session_t *s, int client_id, int hdrc, const stomp_h
 }
 
 // TODO enforce different tx_ids
-int stomp_begin(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
+int stomp_begin(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 {
 	if (!hdr_get(hdrc, hdrs, "transaction")) {
 		errno = EINVAL;
@@ -458,7 +457,7 @@ int stomp_begin(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
 	return 0;
 }
 
-int stomp_abort(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
+int stomp_abort(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 {
 	if (!hdr_get(hdrc, hdrs, "transaction")) {
 		errno = EINVAL;
@@ -485,7 +484,7 @@ int stomp_abort(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
 	return 0;
 }
 
-int stomp_ack(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
+int stomp_ack(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 {
 	switch(s->protocol) {
 		case SPL_12:
@@ -532,7 +531,7 @@ int stomp_ack(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
 	return 0;
 }
 
-int stomp_nack(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
+int stomp_nack(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 {
 	switch(s->protocol) {
 		case SPL_12:
@@ -576,7 +575,7 @@ int stomp_nack(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
 	return 0;
 }
 
-int stomp_commit(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
+int stomp_commit(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 {
 	if (!hdr_get(hdrc, hdrs, "transaction")) {
 		errno = EINVAL;
@@ -603,7 +602,7 @@ int stomp_commit(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs)
 	return 0;
 }
 
-int stomp_send(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs, void *body, size_t body_len)
+int stomp_send(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs, void *body, size_t body_len)
 {
 	char buf[MAXBUFLEN];
 	const char *len;
@@ -650,15 +649,20 @@ static void on_connected(stomp_session_t *s)
 { 
 	stomp_ctx_connected_t e;
 	frame_t *f = s->frame_in;
-	long x, y;
+	unsigned long x, y;
 	const char *h;
+	size_t hdrc;
+	const stomp_hdr_t *hdrs;
 	stomp_prot_t v;
 
-	if (frame_hdr_get(f, "version", &h)>0 && !parse_version(h, &v)) {
+	hdrc = frame_hdrs_get(f, &hdrs);
+	h = hdr_get(hdrc, hdrs, "version");
+	if (h && !parse_version(h, &v)) {
 		s->protocol = v;
 	}
 
-	if (frame_hdr_get(f, "heart-beat", &h)>0 && !parse_heartbeat(h, &x, &y)) {
+	h = hdr_get(hdrc, hdrs, "heart-beat");
+	if (h && !parse_heartbeat(h, &x, &y)) {
 		if (!s->client_hb || !y) {
 			s->client_hb = 0;
 		} else {
@@ -679,7 +683,8 @@ static void on_connected(stomp_session_t *s)
 		return;
 	}
 
-	e.hdrc = frame_hdrs_get(f, &e.hdrs);
+	e.hdrc = hdrc;
+	e.hdrs = hdrs;
 
 	s->callbacks.connected(s, &e, s->ctx);
 }
@@ -770,7 +775,7 @@ int stomp_run(stomp_session_t *s)
 	struct timeval tv;
 	unsigned long t; /* select timeout in milliseconds */
 	struct timespec now;
-	long elapsed;
+	unsigned long elapsed;
 
 	if (!s->broker_hb && !s->client_hb) {
 		t = 1000;

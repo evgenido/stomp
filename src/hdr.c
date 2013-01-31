@@ -18,9 +18,9 @@
 #include <string.h>
 #include "hdr.h"
 
-const char *hdr_get(int count, const stomp_hdr_t *hdrs, const char *key)
+const char *hdr_get(size_t count, const stomp_hdr_t *hdrs, const char *key)
 {
-	int i;
+	size_t i;
 	const stomp_hdr_t *h;
 	for (i=0; i < count; i++) {
 		h = &hdrs[i];

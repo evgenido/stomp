@@ -160,7 +160,7 @@ void stomp_session_free(stomp_session_t *s);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_connect(stomp_session_t *s, const char *host, const char *service, int hdrc, const stomp_hdr_t *hdrs);
+int stomp_connect(stomp_session_t *s, const char *host, const char *service, size_t hdrc, const stomp_hdr_t *hdrs);
 
 /**
  * Disconnect from a STOMP broker.
@@ -171,7 +171,7 @@ int stomp_connect(stomp_session_t *s, const char *host, const char *service, int
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_disconnect(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
+int stomp_disconnect(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
 
 /**
  * Subscribe to a destination.
@@ -192,7 +192,7 @@ int stomp_disconnect(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
  *
  * @return negative on error; or client_id to be used in stomp_unsubscribe()
 */
-int stomp_subscribe(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
+int stomp_subscribe(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
 
 /**
  * Unsubscribe from a destination.
@@ -207,7 +207,7 @@ int stomp_subscribe(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_unsubscribe(stomp_session_t *s, int client_id, int hdrc, const stomp_hdr_t *hdrs);
+int stomp_unsubscribe(stomp_session_t *s, int client_id, size_t hdrc, const stomp_hdr_t *hdrs);
 
 /**
  * Start a transaction.
@@ -221,7 +221,7 @@ int stomp_unsubscribe(stomp_session_t *s, int client_id, int hdrc, const stomp_h
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_begin(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
+int stomp_begin(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
 
 /**
  * Abort a transaction.
@@ -235,7 +235,7 @@ int stomp_begin(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_abort(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
+int stomp_abort(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
 
 /**
  * Acknowledge a message.
@@ -250,7 +250,7 @@ int stomp_abort(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_ack(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
+int stomp_ack(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
 
 /**
  * Nack a message.
@@ -265,7 +265,7 @@ int stomp_ack(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_nack(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
+int stomp_nack(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
 
 /**
  * Commit a transaction.
@@ -279,7 +279,7 @@ int stomp_nack(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_commit(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
+int stomp_commit(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
 
 /**
  * Send a message.
@@ -296,7 +296,7 @@ int stomp_commit(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_send(stomp_session_t *s, int hdrc, const stomp_hdr_t *hdrs, void *body, size_t body_len);
+int stomp_send(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs, void *body, size_t body_len);
 
 /**
  * Runs the library main loop.

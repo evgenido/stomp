@@ -15,6 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
@@ -33,9 +34,9 @@ typedef enum {
 } read_state_t;
 
 typedef struct {
-	size_t key_offset;
+	ptrdiff_t key_offset;
 	size_t key_len;
-	size_t val_offset;
+	ptrdiff_t val_offset;
 	size_t val_len;
 } frame_hdr_t;
 
@@ -44,22 +45,22 @@ struct _frame {
 	size_t buf_len; /* length of data in buf in bytes */
 	size_t buf_capacity; /* allocated size in bytes */
 
-	size_t cmd_offset; /* pointer to the start of the cmd string */
+	ptrdiff_t cmd_offset; /* offset in buff to the start of the cmd string */
 	size_t cmd_len; /* lenght of cmd string in bytes */
 
-	frame_hdr_t *hdrs;
-	int hdrs_len; 
-	int hdrs_capacity; 
+	frame_hdr_t *hdrs; /* array of frame_hdr_t elements */
+	size_t hdrs_len; /* number of elements in the array */
+	size_t hdrs_capacity; /* allocated number of frame_hdr_t elements */
 
-	stomp_hdr_t *stomp_hdrs;
-	int stomp_hdrs_len; 
-	int stomp_hdrs_capacity; 
+	stomp_hdr_t *stomp_hdrs; /* array of stomp_hdr_t elements */
+	size_t stomp_hdrs_len; /* number of elements in the array */
+	size_t stomp_hdrs_capacity; /* allocated number of stomp_hdr_t elements */
 
-	size_t body_offset;
+	ptrdiff_t body_offset; /* offset in buff to the start of the body */
 	size_t body_len; /* length of body in bytes */
 
 	read_state_t read_state; /* current state of the frame reading state mashine */
-	size_t tmp_offset; /* current position within buf while reading an incomming frame */
+	ptrdiff_t tmp_offset; /* current position within buf while reading an incomming frame */
 	size_t tmp_len; /* amount of bytes read while reading an incomming frame */
 };
 
@@ -321,9 +322,9 @@ int frame_hdr_add(frame_t *f, const char *key, const char *val)
 	return 0;
 }
 
-int frame_hdrs_add(frame_t *f, int hdrc, const stomp_hdr_t *hdrs)
+int frame_hdrs_add(frame_t *f, size_t hdrc, const stomp_hdr_t *hdrs)
 {
-	int i;
+	size_t i;
 	const stomp_hdr_t *h;
 
 	for (i=0; i < hdrc; i++) {
@@ -336,10 +337,26 @@ int frame_hdrs_add(frame_t *f, int hdrc, const stomp_hdr_t *hdrs)
 	return 0;
 }
 
+static size_t frame_hdr_get(frame_t *f, const char *key, const char **val)
+{
+	size_t i;
+	const frame_hdr_t *h;
+	for (i=0; i < f->hdrs_len; i++) {
+		h = &f->hdrs[i];
+		if (!strncmp(key, f->buf + h->key_offset, h->key_len)) {
+			*val = f->buf + h->val_offset;
+			return h->val_len; 
+		}
+	}
+
+	return 0;
+}
+
+
 int frame_body_set(frame_t *f, const void *data, size_t len)
 {
 	void *dest;
-	size_t offset;
+	ptrdiff_t offset;
 
 	if (!f->cmd_len) {
 		return -1;
@@ -406,11 +423,11 @@ static read_state_t frame_read_body(frame_t *f, char c)
 	return state;
 } 
 
-int frame_write(int fd, frame_t *f) 
+ssize_t frame_write(int fd, frame_t *f) 
 {
 	size_t left; 
 	ssize_t n;
-	size_t total = 0;
+	ssize_t total = 0;
 
 	/* close the frame */
 	if (!f->body_offset) {
@@ -638,7 +655,7 @@ int frame_read(int fd, frame_t *f)
 	return 0;
 }
 
-int frame_cmd_get(frame_t *f, const char **cmd)
+size_t frame_cmd_get(frame_t *f, const char **cmd)
 {
 	if (!f->cmd_len) {
 		return 0;
@@ -648,25 +665,10 @@ int frame_cmd_get(frame_t *f, const char **cmd)
 	return f->cmd_len;
 }
 
-int frame_hdr_get(frame_t *f, const char *key, const char **val)
-{
-	int i;
-	const frame_hdr_t *h;
-	for (i=0; i < f->hdrs_len; i++) {
-		h = &f->hdrs[i];
-		if (!strncmp(key, f->buf + h->key_offset, h->key_len)) {
-			*val = f->buf + h->val_offset;
-			return h->val_len; 
-		}
-	}
-
-	return 0;
-}
-
-int frame_hdrs_get(frame_t *f, const stomp_hdr_t **hdrs)
+size_t frame_hdrs_get(frame_t *f, const stomp_hdr_t **hdrs)
 {
 	stomp_hdr_t *h;
-	int i;
+	size_t i;
 
 	if (!f->hdrs) {
 		return 0;
@@ -699,7 +701,7 @@ int frame_hdrs_get(frame_t *f, const stomp_hdr_t **hdrs)
 	return f->stomp_hdrs_len;
 }
 
-int frame_body_get(frame_t *f, const void **body)
+size_t frame_body_get(frame_t *f, const void **body)
 {
 	if (!f->body_len) {
 		return 0;
