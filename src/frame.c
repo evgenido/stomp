@@ -121,11 +121,14 @@ void frame_reset(frame_t *f)
 	void *buf = f->buf;
 	size_t capacity = f->buf_capacity;
 	frame_hdr_t *hdrs = f->hdrs;
-	stomp_hdr_t *stomp_hdrs = f->stomp_hdrs;
 	size_t hdrs_capacity = f->hdrs_capacity;
+	stomp_hdr_t *stomp_hdrs = f->stomp_hdrs;
 	size_t stomp_hdrs_capacity = f->stomp_hdrs_capacity;
-	memset(hdrs, 0, sizeof(*hdrs)*hdrs_capacity);
+
 	memset(f, 0, sizeof(*f));
+	memset(hdrs, 0, sizeof(*hdrs)*hdrs_capacity);
+	memset(stomp_hdrs, 0, sizeof(*stomp_hdrs)*stomp_hdrs_capacity);
+
 	f->buf = buf;
 	f->buf_capacity = capacity;
 	f->hdrs = hdrs;
@@ -246,7 +249,28 @@ static void *frame_bufcate(frame_t *f, const void *data, size_t len)
 int frame_cmd_set(frame_t *f, const char *cmd)
 {
 	void *dest;
-	size_t len = strlen(cmd);
+	size_t len;
+
+	if (!f) {
+		errno = EINVAL;
+		return -1;
+	}
+	
+	if (f->cmd_len) {
+		errno = EINVAL;
+		return -1;
+	}
+	
+	if (!cmd) {
+		errno = EINVAL;
+		return -1;
+	}
+
+       	len = strlen(cmd);
+	if (!len) {
+		errno = EINVAL;
+		return -1;
+	}
 	
 	dest = frame_bufcat(f, cmd, len);
 	if (!dest) {
@@ -267,17 +291,49 @@ int frame_hdr_add(frame_t *f, const char *key, const char *val)
 {
 	frame_hdr_t *h;
 	void *dest;
-	size_t len;
+	size_t key_len;
+	size_t val_len;
 
+	if (!f) {
+		errno = EINVAL;
+		return -1;
+	}
+	
 	if (!f->cmd_len) {
 		errno = EINVAL;
 		return -1;
 	}
 	
+	// TODO what about zero length body frames
 	if (f->body_offset) {
 		errno = EINVAL;
 		return -1;
 	}
+
+	if (!key) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	key_len = strlen(key);
+
+	if (!key_len) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (!val) {
+		errno = EINVAL;
+		return -1;
+	}
+	
+	val_len = strlen(val);
+
+	if (!val_len) {
+		errno = EINVAL;
+		return -1;
+	}
+
 
 	if (!(f->hdrs_capacity - f->hdrs_len)) {
 		size_t capacity = f->hdrs_capacity + HDRINCLEN;
@@ -293,8 +349,7 @@ int frame_hdr_add(frame_t *f, const char *key, const char *val)
 	}
 
 	h = &f->hdrs[f->hdrs_len];
-	len = strlen(key);
-	dest = frame_bufcate(f, key, len);
+	dest = frame_bufcate(f, key, key_len);
 	if (!dest) {
 		return -1;
 	}
@@ -305,8 +360,7 @@ int frame_hdr_add(frame_t *f, const char *key, const char *val)
 		return -1;
 	}
 
-	len = strlen(val);
-	dest = frame_bufcate(f, val, len);
+	dest = frame_bufcate(f, val, val_len);
 	if (!dest) {
 		return -1;
 	}
@@ -326,6 +380,11 @@ int frame_hdrs_add(frame_t *f, size_t hdrc, const stomp_hdr_t *hdrs)
 {
 	size_t i;
 	const stomp_hdr_t *h;
+
+	if (!hdrs) {
+		errno = EINVAL;
+		return -1;
+	}
 
 	for (i=0; i < hdrc; i++) {
 		h = &hdrs[i];
@@ -358,11 +417,18 @@ int frame_body_set(frame_t *f, const void *data, size_t len)
 	void *dest;
 	ptrdiff_t offset;
 
+	if (!f) {
+		errno = EINVAL;
+		return -1;
+	}
+
 	if (!f->cmd_len) {
+		errno = EINVAL;
 		return -1;
 	}
 
 	if (f->body_offset) {
+		errno = EINVAL;
 		return -1;
 	}
 	
