@@ -37,53 +37,52 @@ typedef struct _stomp_session stomp_session_t;
  * All functions which accept headers as a parameter use this, and 
  * also all context structures.
  */
-typedef struct {
+struct stomp_hdr {
 	const char *key; /**< null terminated string */
 	const char *val; /**< null terminated string */
-} stomp_hdr_t;
+};
 
 /**
  * This structure is provided to the client code
  * which registered a callback for SCB_CONNECTED.
  */
-typedef struct {
+struct stomp_ctx_connected {
 	size_t hdrc; /**< number of headers */
-	const stomp_hdr_t *hdrs; /**< pointer to an array of headers */
-} stomp_ctx_connected_t;
+	const struct stomp_hdr *hdrs; /**< pointer to an array of headers */
+};
 
 /**
  * This structure is provided to the client code
  * which registered a callback for SCB_RECEIPT.
  */
-typedef struct {
+struct stomp_ctx_receipt {
 	size_t hdrc; /**< number of headers */
-	const stomp_hdr_t *hdrs; /**< pointer to an array of headers */
-} stomp_ctx_receipt_t;
+	const struct stomp_hdr *hdrs; /**< pointer to an array of headers */
+};
 
 
 /**
  * This structure is provided to the client code
  * which registered a callback for SCB_ERROR.
  */
-typedef struct { 
+struct stomp_ctx_error { 
 	size_t hdrc; /**< number of headers */
-	const stomp_hdr_t *hdrs; /**< pointer to an array of headers */
+	const struct stomp_hdr *hdrs; /**< pointer to an array of headers */
 	const void *body; /**< pointer to the body of the message */
 	size_t body_len; /**< length of body in bytes */
-} stomp_ctx_error_t;
+};
 
 /**
  * This structure is provided to the client code
  * which registered a callback for SCB_MESSAGE.
  */
-typedef struct {
+struct stomp_ctx_message {
 	size_t hdrc; /**< number of headers */
-	const stomp_hdr_t *hdrs; /**< pointer to an array of headers */
+	const struct stomp_hdr *hdrs; /**< pointer to an array of headers */
 	const void *body; /**< pointer to the body of the message */
 	size_t body_len; /**< length of body in bytes */
-} stomp_ctx_message_t;
+};
 
-typedef void(* stomp_callback_t)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
 
 /**
  * List of events the client code can register 
@@ -99,13 +98,15 @@ typedef void(* stomp_callback_t)(stomp_session_t *s, void *callback_ctx, void *s
  * @seen stomp_callback_set
  * @seen stomp_callback_del
  */
-typedef enum {
+enum stomp_cb_type {
 	SCB_CONNECTED, /**< server sended CONNECTED */
 	SCB_ERROR, /**< server sended ERROR */
 	SCB_MESSAGE, /**< server sended MESSAGE  */
 	SCB_RECEIPT, /**< server sended RECEIPT  */
 	SCB_USER /**< user slot */
-} stomp_cb_type_t;
+};
+
+typedef void(*stomp_cb_t)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
 
 /**
  * Register a callback when a particular event occurs.
@@ -114,7 +115,7 @@ typedef enum {
  * @param type type of event to register for
  * @param cb callback to register
  */
-void stomp_callback_set(stomp_session_t *s, stomp_cb_type_t type, stomp_callback_t cb);
+void stomp_callback_set(stomp_session_t *s, enum stomp_cb_type type, stomp_cb_t cb);
 
 /**
  * Delete callback for a particular event.
@@ -123,7 +124,7 @@ void stomp_callback_set(stomp_session_t *s, stomp_cb_type_t type, stomp_callback
  * @param type Type of event to register for
  * @param cb Callback to register
  */
-void stomp_callback_del(stomp_session_t *s, stomp_cb_type_t type);
+void stomp_callback_del(stomp_session_t *s, enum stomp_cb_type type);
 
 /**
  * Create a STOMP session handle.
@@ -160,7 +161,7 @@ void stomp_session_free(stomp_session_t *s);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_connect(stomp_session_t *s, const char *host, const char *service, size_t hdrc, const stomp_hdr_t *hdrs);
+int stomp_connect(stomp_session_t *s, const char *host, const char *service, size_t hdrc, const struct stomp_hdr *hdrs);
 
 /**
  * Disconnect from a STOMP broker.
@@ -171,7 +172,7 @@ int stomp_connect(stomp_session_t *s, const char *host, const char *service, siz
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_disconnect(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
+int stomp_disconnect(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs);
 
 /**
  * Subscribe to a destination.
@@ -192,7 +193,7 @@ int stomp_disconnect(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
  *
  * @return negative on error; or client_id to be used in stomp_unsubscribe()
 */
-int stomp_subscribe(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
+int stomp_subscribe(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs);
 
 /**
  * Unsubscribe from a destination.
@@ -207,7 +208,7 @@ int stomp_subscribe(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_unsubscribe(stomp_session_t *s, int client_id, size_t hdrc, const stomp_hdr_t *hdrs);
+int stomp_unsubscribe(stomp_session_t *s, int client_id, size_t hdrc, const struct stomp_hdr *hdrs);
 
 /**
  * Start a transaction.
@@ -221,7 +222,7 @@ int stomp_unsubscribe(stomp_session_t *s, int client_id, size_t hdrc, const stom
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_begin(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
+int stomp_begin(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs);
 
 /**
  * Abort a transaction.
@@ -235,7 +236,7 @@ int stomp_begin(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_abort(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
+int stomp_abort(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs);
 
 /**
  * Acknowledge a message.
@@ -250,7 +251,7 @@ int stomp_abort(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_ack(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
+int stomp_ack(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs);
 
 /**
  * Nack a message.
@@ -265,7 +266,7 @@ int stomp_ack(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_nack(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
+int stomp_nack(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs);
 
 /**
  * Commit a transaction.
@@ -279,7 +280,7 @@ int stomp_nack(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_commit(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
+int stomp_commit(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs);
 
 /**
  * Send a message.
@@ -296,7 +297,7 @@ int stomp_commit(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs);
  *
  * @return 0 on success; negative on error and errno is set appropriately.
  */
-int stomp_send(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs, void *body, size_t body_len);
+int stomp_send(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs, void *body, size_t body_len);
 
 /**
  * Runs the library main loop.

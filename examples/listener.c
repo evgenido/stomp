@@ -4,11 +4,11 @@
 
 #include <stomp.h>
 
-typedef struct {
+struct ctx {
 	const char *destination;
-} ctx_t;
+};
 
-static void dump_hdrs(int hdrc, const stomp_hdr_t *hdrs)
+static void dump_hdrs(int hdrc, const struct stomp_hdr *hdrs)
 {
 	int i;
 	for (i=0; i < hdrc; i++) {
@@ -18,12 +18,12 @@ static void dump_hdrs(int hdrc, const stomp_hdr_t *hdrs)
 
 static void _connected(stomp_session_t *s, void *ctx, void *session_ctx)
 {
-	ctx_t *c = session_ctx;
-	stomp_hdr_t hdrs[] = {
+	struct ctx *c = session_ctx;
+	struct stomp_hdr hdrs[] = {
 		{"destination", c->destination},
 	};
 
-	int err = stomp_subscribe(s, sizeof(hdrs)/sizeof(stomp_hdr_t), hdrs);
+	int err = stomp_subscribe(s, sizeof(hdrs)/sizeof(struct stomp_hdr), hdrs);
 	if (err<0) {
 		perror("stomp");
 	}
@@ -31,21 +31,21 @@ static void _connected(stomp_session_t *s, void *ctx, void *session_ctx)
 
 static void _message(stomp_session_t *s, void *ctx, void *session_ctx)
 {
-	stomp_ctx_message_t *e = ctx;
+	struct stomp_ctx_message *e = ctx;
 	dump_hdrs(e->hdrc, e->hdrs);
 	fprintf(stdout, "message: %s\n", (const char *)e->body);
 }
 
 static void _error(stomp_session_t *session, void *ctx, void *session_ctx)
 {
-	stomp_ctx_error_t *e = ctx;
+	struct stomp_ctx_error *e = ctx;
 	dump_hdrs(e->hdrc, e->hdrs);
 	fprintf(stderr, "err: %s\n", (const char *)e->body);
 }
 
 static void _receipt(stomp_session_t *s, void *ctx, void *session_ctx)
 {
-	stomp_ctx_receipt_t *e = ctx;
+	struct stomp_ctx_receipt *e = ctx;
 	dump_hdrs(e->hdrc, e->hdrs);
 	fprintf(stdout, "receipt: \n");
 }
@@ -57,9 +57,9 @@ static void _user(stomp_session_t *s, void *ctx, void *session_ctx)
 int main(int argc, char *argv[]) 
 {
 	int err;
-	ctx_t c;
+	struct ctx c;
 	stomp_session_t *s;
-	stomp_hdr_t hdrs[] = {
+	struct stomp_hdr hdrs[] = {
 		{"login", "admin"},
 		{"passcode", "password"},
 		{"accept-version", "1.2"},
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 	stomp_callback_set(s, SCB_RECEIPT, _receipt);
 	stomp_callback_set(s, SCB_USER, _user);
 
-	err = stomp_connect(s, "127.0.0.1", "61613", sizeof(hdrs)/sizeof(stomp_hdr_t), hdrs);
+	err = stomp_connect(s, "127.0.0.1", "61613", sizeof(hdrs)/sizeof(struct stomp_hdr), hdrs);
 	if (err) {
 		perror("stomp");
 		stomp_session_free(s);

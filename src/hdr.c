@@ -18,10 +18,10 @@
 #include <string.h>
 #include "hdr.h"
 
-const char *hdr_get(size_t count, const stomp_hdr_t *hdrs, const char *key)
+const char *hdr_get(size_t count, const struct stomp_hdr *hdrs, const char *key)
 {
 	size_t i;
-	const stomp_hdr_t *h;
+	const struct stomp_hdr *h;
 	for (i=0; i < count; i++) {
 		h = &hdrs[i];
 		if (!strcmp(key, h->key)) {

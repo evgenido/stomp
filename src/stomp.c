@@ -36,28 +36,28 @@
 #define MAXBROKERTMOUTS 5
 
 
-typedef enum {
+enum stomp_prot {
 	SPL_10,
 	SPL_11,
 	SPL_12
-} stomp_prot_t;
+};
 
-typedef struct {
-	stomp_callback_t connected;
-	stomp_callback_t message;
-	stomp_callback_t error;
-	stomp_callback_t receipt;
-	stomp_callback_t user;
-} stomp_callbacks_t;
+struct stomp_callbacks {
+	void(*connected)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
+	void(*message)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
+	void(*error)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
+	void(*receipt)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
+	void(*user)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
+};
 
 struct _stomp_session {
-	stomp_callbacks_t callbacks; /* event callbacks */
+	struct stomp_callbacks callbacks; /* event callbacks */
 	void *ctx; /* pointer to user supplied session context */
 
 	frame_t *frame_out; /* library -> broker */
 	frame_t *frame_in; /* broker -> library */
 
-	stomp_prot_t protocol;
+	enum stomp_prot protocol;
 	int broker_fd;
 	int client_id; /* unique ids for subscribe */
 	unsigned long client_hb; /* client heart beat period in milliseconds */
@@ -68,9 +68,9 @@ struct _stomp_session {
 	int run;
 };
 
-static int parse_version(const char *s, stomp_prot_t *v)
+static int parse_version(const char *s, enum stomp_prot *v)
 {
-	stomp_prot_t tmp_v;
+	enum stomp_prot tmp_v;
 
 	if (!s) {
 		errno = EINVAL;
@@ -181,7 +181,7 @@ void stomp_session_free(stomp_session_t *s)
 	free(s);
 }
 
-void stomp_callback_set(stomp_session_t *s, stomp_cb_type_t type, stomp_callback_t cb)
+void stomp_callback_set(stomp_session_t *s, enum stomp_cb_type type, stomp_cb_t cb)
 {
 	if (!s) {
 		return;
@@ -207,7 +207,7 @@ void stomp_callback_set(stomp_session_t *s, stomp_cb_type_t type, stomp_callback
 	}
 }
 
-void stomp_callback_del(stomp_session_t *s, stomp_cb_type_t type)
+void stomp_callback_del(stomp_session_t *s, enum stomp_cb_type type)
 {
 	if (!s) {
 		return;
@@ -234,7 +234,7 @@ void stomp_callback_del(stomp_session_t *s, stomp_cb_type_t type)
 }
 
 
-int stomp_connect(stomp_session_t *s, const char *host, const char *service, size_t hdrc, const stomp_hdr_t *hdrs)
+int stomp_connect(stomp_session_t *s, const char *host, const char *service, size_t hdrc, const struct stomp_hdr *hdrs)
 {
 	struct addrinfo hints;
 	struct addrinfo *result, *rp;
@@ -305,7 +305,7 @@ int stomp_connect(stomp_session_t *s, const char *host, const char *service, siz
 	return 0;
 }
 
-int stomp_disconnect(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
+int stomp_disconnect(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs)
 {
 	frame_reset(s->frame_out);
 
@@ -328,7 +328,7 @@ int stomp_disconnect(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 }
 
 // TODO enforce different client-ids in case they are provided with hdrs
-int stomp_subscribe(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
+int stomp_subscribe(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs)
 {
 	const char *ack;
 	char buf[MAXBUFLEN];
@@ -383,7 +383,7 @@ int stomp_subscribe(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 	return client_id;
 }
 
-int stomp_unsubscribe(stomp_session_t *s, int client_id, size_t hdrc, const stomp_hdr_t *hdrs)
+int stomp_unsubscribe(stomp_session_t *s, int client_id, size_t hdrc, const struct stomp_hdr *hdrs)
 {
 	char buf[MAXBUFLEN];
 	const char *id = hdr_get(hdrc, hdrs, "id");
@@ -430,7 +430,7 @@ int stomp_unsubscribe(stomp_session_t *s, int client_id, size_t hdrc, const stom
 }
 
 // TODO enforce different tx_ids
-int stomp_begin(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
+int stomp_begin(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs)
 {
 	if (!hdr_get(hdrc, hdrs, "transaction")) {
 		errno = EINVAL;
@@ -457,7 +457,7 @@ int stomp_begin(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 	return 0;
 }
 
-int stomp_abort(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
+int stomp_abort(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs)
 {
 	if (!hdr_get(hdrc, hdrs, "transaction")) {
 		errno = EINVAL;
@@ -484,7 +484,7 @@ int stomp_abort(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 	return 0;
 }
 
-int stomp_ack(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
+int stomp_ack(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs)
 {
 	switch(s->protocol) {
 		case SPL_12:
@@ -531,7 +531,7 @@ int stomp_ack(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 	return 0;
 }
 
-int stomp_nack(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
+int stomp_nack(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs)
 {
 	switch(s->protocol) {
 		case SPL_12:
@@ -575,7 +575,7 @@ int stomp_nack(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 	return 0;
 }
 
-int stomp_commit(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
+int stomp_commit(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs)
 {
 	if (!hdr_get(hdrc, hdrs, "transaction")) {
 		errno = EINVAL;
@@ -602,7 +602,7 @@ int stomp_commit(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs)
 	return 0;
 }
 
-int stomp_send(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs, void *body, size_t body_len)
+int stomp_send(stomp_session_t *s, size_t hdrc, const struct stomp_hdr *hdrs, void *body, size_t body_len)
 {
 	char buf[MAXBUFLEN];
 	const char *len;
@@ -647,13 +647,13 @@ int stomp_send(stomp_session_t *s, size_t hdrc, const stomp_hdr_t *hdrs, void *b
 
 static void on_connected(stomp_session_t *s) 
 { 
-	stomp_ctx_connected_t e;
+	struct stomp_ctx_connected e;
 	frame_t *f = s->frame_in;
 	unsigned long x, y;
 	const char *h;
 	size_t hdrc;
-	const stomp_hdr_t *hdrs;
-	stomp_prot_t v;
+	const struct stomp_hdr *hdrs;
+	enum stomp_prot v;
 
 	hdrc = frame_hdrs_get(f, &hdrs);
 	h = hdr_get(hdrc, hdrs, "version");
@@ -691,7 +691,7 @@ static void on_connected(stomp_session_t *s)
 
 static void on_receipt(stomp_session_t *s) 
 { 
-	stomp_ctx_receipt_t e;
+	struct stomp_ctx_receipt e;
 	frame_t *f = s->frame_in;
 
 	if (!s->callbacks.receipt) {
@@ -705,7 +705,7 @@ static void on_receipt(stomp_session_t *s)
 
 static void on_error(stomp_session_t *s) 
 { 
-	stomp_ctx_error_t e;
+	struct stomp_ctx_error e;
 	frame_t *f = s->frame_in;
 
 	if (!s->callbacks.error) {
@@ -720,7 +720,7 @@ static void on_error(stomp_session_t *s)
 
 static void on_message(stomp_session_t *s) 
 { 
-	stomp_ctx_message_t e;
+	struct stomp_ctx_message e;
 	frame_t *f = s->frame_in;
 
 	if (!s->callbacks.message) {

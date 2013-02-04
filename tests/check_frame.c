@@ -20,7 +20,7 @@ void teardown()
 START_TEST(test_new)
 {
 	const char *cmd;
-	const stomp_hdr_t *hdrs;
+	const struct stomp_hdr *hdrs;
 	const void *body;
 
 	fail_if(frame == NULL, NULL);
@@ -200,7 +200,7 @@ END_TEST
 
 START_TEST(test_hdr_add)
 {
-	const stomp_hdr_t *hdrs;
+	const struct stomp_hdr *hdrs;
 	const char *key = "version";
 	const char *val = "1.2";
 
@@ -231,8 +231,8 @@ START_TEST(test_hdrs_add)
 	const char *val0 = "1.2";
 	const char *key1 = "heart-beat";
 	const char *val1 = "1000,1000";
-	const stomp_hdr_t *hdrs0;
-	const stomp_hdr_t hdrs[] = {
+	const struct stomp_hdr *hdrs0;
+	const struct stomp_hdr hdrs[] = {
 		{key0, val0},
 		{key1, val1}
 	};
@@ -240,7 +240,7 @@ START_TEST(test_hdrs_add)
 	fail_if(frame == NULL, NULL);
 	fail_if(frame_cmd_set(frame, "CONNECT") != 0, NULL);
 
-	fail_if(frame_hdrs_add(frame, sizeof(hdrs)/sizeof(stomp_hdr_t), hdrs), NULL);
+	fail_if(frame_hdrs_add(frame, sizeof(hdrs)/sizeof(struct stomp_hdr), hdrs), NULL);
 
 	fail_unless(frame_hdrs_get(frame, &hdrs0) == 2, NULL);
 	fail_if(strncmp(hdrs0[0].key, key0, strlen(key0)), NULL);

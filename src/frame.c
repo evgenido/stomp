@@ -23,7 +23,7 @@
 #include "frame.h"
 #include "hdr.h"
 
-typedef enum {
+enum read_state {
 	RS_INIT,
 	RS_CMD,
 	RS_HDR,
@@ -31,14 +31,14 @@ typedef enum {
 	RS_BODY,
 	RS_DONE,
 	RS_ERR
-} read_state_t;
+};
 
-typedef struct {
+struct frame_hdr {
 	ptrdiff_t key_offset;
 	size_t key_len;
 	ptrdiff_t val_offset;
 	size_t val_len;
-} frame_hdr_t;
+};
 
 struct _frame {
 	void *buf;
@@ -48,18 +48,18 @@ struct _frame {
 	ptrdiff_t cmd_offset; /* offset in buff to the start of the cmd string */
 	size_t cmd_len; /* lenght of cmd string in bytes */
 
-	frame_hdr_t *hdrs; /* array of frame_hdr_t elements */
+	struct frame_hdr *hdrs; /* array of struct frame_hdr elements */
 	size_t hdrs_len; /* number of elements in the array */
-	size_t hdrs_capacity; /* allocated number of frame_hdr_t elements */
+	size_t hdrs_capacity; /* allocated number of struct frame_hdr elements */
 
-	stomp_hdr_t *stomp_hdrs; /* array of stomp_hdr_t elements */
+	struct stomp_hdr *stomp_hdrs; /* array of struct stomp_hdr elements */
 	size_t stomp_hdrs_len; /* number of elements in the array */
-	size_t stomp_hdrs_capacity; /* allocated number of stomp_hdr_t elements */
+	size_t stomp_hdrs_capacity; /* allocated number of struct stomp_hdr elements */
 
 	ptrdiff_t body_offset; /* offset in buff to the start of the body */
 	size_t body_len; /* length of body in bytes */
 
-	read_state_t read_state; /* current state of the frame reading state mashine */
+	enum read_state read_state; /* current state of the frame reading state mashine */
 	ptrdiff_t tmp_offset; /* current position within buf while reading an incomming frame */
 	size_t tmp_len; /* amount of bytes read while reading an incomming frame */
 };
@@ -68,7 +68,7 @@ struct _frame {
  * when adding more data to the frame */
 #define BUFINCLEN 512
 
-/* number of stomp_hdr_t structures to add to session->hdrs 
+/* number of struct stomp_hdr structures to add to session->hdrs 
  * when adding more data to the frame */
 #define HDRINCLEN 4
 
@@ -120,9 +120,9 @@ void frame_reset(frame_t *f)
 {
 	void *buf = f->buf;
 	size_t capacity = f->buf_capacity;
-	frame_hdr_t *hdrs = f->hdrs;
+	struct frame_hdr *hdrs = f->hdrs;
 	size_t hdrs_capacity = f->hdrs_capacity;
-	stomp_hdr_t *stomp_hdrs = f->stomp_hdrs;
+	struct stomp_hdr *stomp_hdrs = f->stomp_hdrs;
 	size_t stomp_hdrs_capacity = f->stomp_hdrs_capacity;
 
 	memset(f, 0, sizeof(*f));
@@ -289,7 +289,7 @@ int frame_cmd_set(frame_t *f, const char *cmd)
 
 int frame_hdr_add(frame_t *f, const char *key, const char *val)
 {
-	frame_hdr_t *h;
+	struct frame_hdr *h;
 	void *dest;
 	size_t key_len;
 	size_t val_len;
@@ -376,10 +376,10 @@ int frame_hdr_add(frame_t *f, const char *key, const char *val)
 	return 0;
 }
 
-int frame_hdrs_add(frame_t *f, size_t hdrc, const stomp_hdr_t *hdrs)
+int frame_hdrs_add(frame_t *f, size_t hdrc, const struct stomp_hdr *hdrs)
 {
 	size_t i;
-	const stomp_hdr_t *h;
+	const struct stomp_hdr *h;
 
 	if (!hdrs) {
 		errno = EINVAL;
@@ -399,7 +399,7 @@ int frame_hdrs_add(frame_t *f, size_t hdrc, const stomp_hdr_t *hdrs)
 static size_t frame_hdr_get(frame_t *f, const char *key, const char **val)
 {
 	size_t i;
-	const frame_hdr_t *h;
+	const struct frame_hdr *h;
 	for (i=0; i < f->hdrs_len; i++) {
 		h = &f->hdrs[i];
 		if (!strncmp(key, f->buf + h->key_offset, h->key_len)) {
@@ -455,10 +455,10 @@ int frame_body_set(frame_t *f, const void *data, size_t len)
 	return 0;
 }
 
-static read_state_t frame_read_body(frame_t *f, char c) 
+static enum read_state frame_read_body(frame_t *f, char c) 
 {
 	void *tmp;
-	read_state_t state = f->read_state;
+	enum read_state state = f->read_state;
 	size_t body_len;
 	const char *l;
 
@@ -516,10 +516,10 @@ ssize_t frame_write(int fd, frame_t *f)
 	return total; 
 }
 
-static read_state_t frame_read_init(frame_t *f, char c) 
+static enum read_state frame_read_init(frame_t *f, char c) 
 {
 	void *tmp;
-	read_state_t state = f->read_state;
+	enum read_state state = f->read_state;
 
 	switch (c) {
 		case 'C': /* CONNECTED */
@@ -544,9 +544,9 @@ static read_state_t frame_read_init(frame_t *f, char c)
 	return state;
 } 
 
-static read_state_t frame_read_cmd(frame_t *f, char c) 
+static enum read_state frame_read_cmd(frame_t *f, char c) 
 {
-	read_state_t state = f->read_state;
+	enum read_state state = f->read_state;
 	
 	switch (c) {
 		case '\r': 
@@ -581,12 +581,12 @@ static read_state_t frame_read_cmd(frame_t *f, char c)
 	return state;
 } 
 
-static read_state_t frame_read_hdr(frame_t *f, char c) 
+static enum read_state frame_read_hdr(frame_t *f, char c) 
 {
-	frame_hdr_t *h;
+	struct frame_hdr *h;
 	void *tmp;
 	size_t count = f->hdrs_len;
-	read_state_t state = f->read_state;
+	enum read_state state = f->read_state;
 	
 	if (!(f->hdrs_capacity - count)) {
 		size_t capacity = f->hdrs_capacity + HDRINCLEN;
@@ -652,7 +652,7 @@ static read_state_t frame_read_hdr(frame_t *f, char c)
 	return state;
 } 
 
-static read_state_t frame_read_hdr_esc(frame_t *f, char c) 
+static enum read_state frame_read_hdr_esc(frame_t *f, char c) 
 {
 	char *buf;
 	void *tmp;
@@ -731,9 +731,9 @@ size_t frame_cmd_get(frame_t *f, const char **cmd)
 	return f->cmd_len;
 }
 
-size_t frame_hdrs_get(frame_t *f, const stomp_hdr_t **hdrs)
+size_t frame_hdrs_get(frame_t *f, const struct stomp_hdr **hdrs)
 {
-	stomp_hdr_t *h;
+	struct stomp_hdr *h;
 	size_t i;
 
 	if (!f->hdrs) {
