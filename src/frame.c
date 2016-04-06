@@ -19,6 +19,7 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <sys/socket.h>
 
 #include "frame.h"
 #include "hdr.h"
@@ -504,7 +505,7 @@ ssize_t frame_write(int fd, frame_t *f)
 
     left = f->buf_len;
     while(total < f->buf_len) {
-        n = write(fd, f->buf + total, left);
+        n = send(fd, f->buf + total, left, MSG_NOSIGNAL);
         if (n == -1) {
             return -1;
         }
@@ -775,4 +776,3 @@ size_t frame_body_get(frame_t *f, const void **body)
     *body = f->buf + f->body_offset;
     return f->body_len;
 }
-
