@@ -1,6 +1,6 @@
 AC_INIT([stomp], [0.1], [evgeni_dobrev@developer.bg],[],[https://github.com/evgenido/stomp])
 AC_CONFIG_MACRO_DIR([m4])
-AM_INIT_AUTOMAKE([-Wall -Werror foreign 1.11])
+AM_INIT_AUTOMAKE([subdir-objects])
 AM_SILENT_RULES([yes])
 LT_INIT
 AC_PROG_CC
