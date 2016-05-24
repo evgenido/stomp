@@ -25,48 +25,15 @@
 #include <limits.h>
 #include <time.h>
 
-#include "stomp.h"
-#include "frame.h"
-#include "hdr.h"
+#include <stomp/stomp.h>
+#include <stomp/frame.h>
+#include <stomp/hdr.h>
 
 /* enough space for ULLONG_MAX as string */
 #define MAXBUFLEN 25
 
 /* max number of broker heartbeat timeouts */
 #define MAXBROKERTMOUTS 5
-
-
-enum stomp_prot {
-	SPL_10,
-	SPL_11,
-	SPL_12
-};
-
-struct stomp_callbacks {
-	void(*connected)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
-	void(*message)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
-	void(*error)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
-	void(*receipt)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
-	void(*user)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
-};
-
-struct _stomp_session {
-	struct stomp_callbacks callbacks; /* event callbacks */
-	void *ctx; /* pointer to user supplied session context */
-
-	frame_t *frame_out; /* library -> broker */
-	frame_t *frame_in; /* broker -> library */
-
-	enum stomp_prot protocol;
-	int broker_fd;
-	int client_id; /* unique ids for subscribe */
-	unsigned long client_hb; /* client heart beat period in milliseconds */
-	unsigned long broker_hb; /* broker heart beat period in milliseconds */
-	struct timespec last_write;
-	struct timespec last_read;
-	int broker_timeouts; 
-	int run;
-};
 
 static int parse_version(const char *s, enum stomp_prot *v)
 {
@@ -849,4 +816,3 @@ stomp_run_error:
 	(void)close(s->broker_fd);
 	return -1;
 }
-

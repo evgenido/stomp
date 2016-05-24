@@ -14,25 +14,12 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef FRAME_H
-#define FRAME_H
+#ifndef HDR_H
+#define HDR_H
 
-#include "stomp.h"
+#include <stomp/stomp.h>
 
-typedef struct _frame frame_t;
+const char *hdr_get(size_t count, const struct stomp_hdr *hdrs, const char *key);
 
-frame_t *frame_new();
-void frame_free(frame_t *f);
-void frame_reset(frame_t *f);
-int frame_cmd_set(frame_t *f, const char *cmd);
-int frame_hdr_add(frame_t *f, const char *key, const char *val);
-int frame_hdrs_add(frame_t *f, size_t hdrc, const struct stomp_hdr *hdrs);
-int frame_body_set(frame_t *f, const void *body, size_t len);
-ssize_t frame_write(int fd, frame_t *f);
 
-size_t frame_cmd_get(frame_t *f, const char **cmd);
-size_t frame_hdrs_get(frame_t *f, const struct stomp_hdr **hdrs);
-size_t frame_body_get(frame_t *f, const void **body);
-int frame_read(int fd, frame_t *f);
-
-#endif /* FRAME_H */
+#endif /* HDR_H */

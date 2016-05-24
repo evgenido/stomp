@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <stomp.h>
+#include <stomp/stomp.h>
 
 struct ctx {
 	const char *destination;

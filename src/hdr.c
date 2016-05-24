@@ -16,7 +16,7 @@
  */
 #include <stddef.h>
 #include <string.h>
-#include "hdr.h"
+#include <stomp/hdr.h>
 
 const char *hdr_get(size_t count, const struct stomp_hdr *hdrs, const char *key)
 {
