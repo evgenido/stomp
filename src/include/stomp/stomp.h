@@ -18,10 +18,27 @@
 #define STOMP_H
 
 #include <sys/types.h>
+#include <stomp/frame.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+enum stomp_prot {
+	SPL_10,
+	SPL_11,
+	SPL_12
+};
+
+typedef struct _stomp_session stomp_session_t;
+
+struct stomp_callbacks {
+	void(*connected)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
+	void(*message)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
+	void(*error)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
+	void(*receipt)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
+	void(*user)(stomp_session_t *s, void *callback_ctx, void *session_ctx);
+};
 
 /**
  * An opaque STOMP sesstion handle
@@ -29,7 +46,23 @@ extern "C" {
  * @see stomp_session_new()
  * @see stomp_session_free()
  */
-typedef struct _stomp_session stomp_session_t;
+struct _stomp_session {
+	struct stomp_callbacks callbacks; /* event callbacks */
+	void *ctx; /* pointer to user supplied session context */
+
+	frame_t *frame_out; /* library -> broker */
+	frame_t *frame_in; /* broker -> library */
+
+	enum stomp_prot protocol;
+	int broker_fd;
+	int client_id; /* unique ids for subscribe */
+	unsigned long client_hb; /* client heart beat period in milliseconds */
+	unsigned long broker_hb; /* broker heart beat period in milliseconds */
+	struct timespec last_write;
+	struct timespec last_read;
+	int broker_timeouts; 
+	int run;
+};
 
 /**
  * Structure representing a STOMP header entry

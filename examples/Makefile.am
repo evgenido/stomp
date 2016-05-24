@@ -3,4 +3,4 @@ AM_CPPFLAGS = -I$(srcdir)/../src -Wall -Werror
 listener_SOURCES = listener.c 
 
 listener_LDADD = ../src/libstomp.la 
-
+listener_CFLAGS = -I../src/include

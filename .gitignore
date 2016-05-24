@@ -1,17 +1,41 @@
-# Object files
-*.o
-
-# Libraries
-*.lib
+COPYING
+INSTALL
+Makefile
+.deps
+*.in
 *.a
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
+*.o
+*.sw*
+aclocal.m4
+autom4te.cache/
+compile
+config.h
+config.log
+config.status
+configure
+depcomp
+install-sh
+missing
+src/newtd
+tests/newt_test
+stamp-h1
+.dirstamp
+*.conf
+core
+ChangeLog
+GPATH
+GRTAGS
+GSYMS
+GTAGS
+NEWS
+config.guess
+config.sub
+.libs/
+listener
+libtool
+ltmain.sh
+m4/
+*.lo
+*.la
+*.pc
+test-driver
