@@ -166,16 +166,18 @@ static void *frame_alloc(frame_t *f, size_t len)
 		return f->buf + f->buf_len;
 	}
 
-	capacity = f->buf_capacity + BUFINCLEN;
-	buf = realloc(f->buf, capacity);
-	if (!buf) {
-		return NULL;
-	}
+	do {
+		capacity = f->buf_capacity + BUFINCLEN;
+		buf = realloc(f->buf, capacity);
+		if (!buf) {
+			return NULL;
+		}
 
-	memset(buf + f->buf_len, 0, (capacity - f->buf_len));
+		memset(buf + f->buf_len, 0, (capacity - f->buf_len));
 
-	f->buf = buf;
-	f->buf_capacity = capacity;
+		f->buf = buf;
+		f->buf_capacity = capacity;
+	} while(capacity - f->buf_len < len);
 
 	return f->buf + f->buf_len;
 }
